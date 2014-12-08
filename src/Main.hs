@@ -23,10 +23,10 @@ engineConfig :: EngineConfig
 engineConfig = EngineConfig (800,600) False False "Monad Invaders v0.0.1"
 
 background :: Element
-background = Graphics.fittedImage 800 600 "Graphics/paper.png"
+background = Graphics.fittedImage 800 600 "Graphics/paper_fullhd_20.png"
 
 spaceShipImg :: Element
-spaceShipImg = Graphics.fittedImage 175 250 "Graphics/ship_25.png"
+spaceShipImg = Graphics.fittedImage 140 200 "Graphics/ship_pencil.png"
 
 --redInvaderImg :: Element
 --redInvaderImg = Graphics.fittedImage 100 100 "img/red_invader.png"
@@ -38,10 +38,10 @@ spaceShipImg = Graphics.fittedImage 175 250 "Graphics/ship_25.png"
 shipSignal :: Signal ShipState
 shipSignal = foldp modifyState initialState Keyboard.arrows
   where 
-    initialState = ShipState {shipX = 300, shipY = 350} --TODO: Избавиться от хардкода
+    initialState = ShipState {shipX = 300, shipY = 400} --TODO: Избавиться от хардкода
     modifyState :: (Int,Int) -> ShipState -> ShipState
     modifyState (dx,dy) state = state {shipX = shipX', shipY = shipY'}
-      where shipX' = shipX state + 25 * dx --TODO: Мб стоит вынести константу в конфигурацию
+      where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
             shipY' = shipY state
 
 --------------------------------------------------------
