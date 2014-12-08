@@ -5,7 +5,7 @@ synopsis:            A Space Invaders arcade game clone written in haskell using
 homepage:            https://github.com/geo2a/monad-invaders.git
 license:             MIT
 license-file:        LICENSE
-author:              Georgiy Lukjanov
+author:              Georgiy Lukjanov, Ann Muharram
 maintainer:          georgiylukjanov@gmail.com
 -- copyright:           
 category:            Game
