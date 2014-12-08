@@ -16,11 +16,13 @@ import qualified FRP.Helm.Text     as Text
 data GameStatus = Startup | InProcess | Over
   deriving (Enum, Bounded,Eq)
 
+data GameState = GameState {status :: GameStatus}
+
 -- Тип, описывающий состояние фона окна, меняется вслед за стуатусом игры
 --    До старта игры выводится приграшение к старту
 --    В процессе игры выводится количество очков и здоровье кораблика
 --    При проигрыше выводится соответсвующее сообщение
-data BackgroundState = BackgroundState {gameStatus :: GameStatus}
+--data BackgroundState = BackgroundState {backgroundStatus :: GameStatus}
 
 -- Тип, описывающий состояние кораблика: 
 --    (shipX, shipY - Координаты кораблика)
@@ -48,18 +50,18 @@ spaceShipImg = Graphics.fittedImage 140 200 "Graphics/ship_pencil.png"
 -----------------------Game logic-----------------------
 --------------------------------------------------------
 
--- Сигнал фона
-backgroundSignal :: Signal BackgroundState
-backgroundSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
+-- Главный сигнал игры
+gameSignal :: Signal GameState
+gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
   where
-    initialState = BackgroundState {gameStatus = Startup}
-    modifyState :: Bool -> BackgroundState -> BackgroundState
+    initialState = GameState {status = Startup}
+    modifyState :: Bool -> GameState -> GameState
     modifyState pressed state = 
-      if pressed then state {gameStatus = nextStatus} else state
+      if pressed then state {status = nextStatus} else state
       where
         nextStatus = 
-          let status = gameStatus state in
-          if status == (maxBound :: GameStatus) then status else succ status
+          let s = status state in
+          if s == (maxBound :: GameStatus) then s else succ s
 
 -- Сигнал кораблика, описывает поведение кораблика во времени
 shipSignal :: Signal ShipState
@@ -78,16 +80,17 @@ shipSignal = foldp modifyState initialState Keyboard.arrows
 renderString :: String -> Form
 renderString = move (300, 100) . toForm . Text.plainText
 
+--startupMessage :: String -> Form 
+--startupMessage = move (300, 100) . toForm . 
+
 -- Рендеринг форм на основе элементов (изображений в формате png) и состояний объектов 
 
--- Задник 
--- TODO: Можно добавить что-нибудь на задник (Хп кораблика, очки и т.п.)
-backgroundForm :: BackgroundState -> Form
-backgroundForm backgroundState = 
-  case gameStatus backgroundState of
-    Startup -> group [toForm backgroundImg,renderString "Sturtup"]
-    InProcess -> group [toForm backgroundImg,renderString "InProcess"]
-    Over -> group [toForm backgroundImg,renderString "Over"]
+-- Фон
+-- TODO: Можно добавить что-нибудь на фон (Хп кораблика, очки и т.п.)
+backgroundForm :: GameStatus -> Form
+backgroundForm Startup   = group [toForm backgroundImg,renderString "Sturtup"] 
+backgroundForm InProcess = group [toForm backgroundImg,renderString "InProcess"]
+backgroundForm Over      = group [toForm backgroundImg,renderString "Over"]
 
 
 -- Кораблик
@@ -96,12 +99,16 @@ shipForm state = move (fromIntegral $ shipX state,
                        fromIntegral $ shipY state) $ toForm spaceShipImg
 
 -- Рендеринг общей сцены 
-render :: (Int, Int) -> BackgroundState -> ShipState -> Element
-render (w, h) backgroundState shipState =
-  collage w h $ [backgroundForm backgroundState,shipForm shipState]
+render :: (Int, Int) -> GameState -> ShipState -> Element
+render (w, h) gameState shipState =
+  let gameStatus = status gameState in 
+  case gameStatus of 
+    Startup   -> collage w h $ [backgroundForm gameStatus]
+    InProcess -> collage w h $ [backgroundForm gameStatus,shipForm shipState]
+    Over      -> collage w h $ [backgroundForm gameStatus]
 
 main :: IO ()
-main = run engineConfig $ render <~ Window.dimensions ~~ backgroundSignal ~~ shipSignal 
+main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal 
   --where
   --  initialState = State { x = 300, y = 400} --TODO: Избавиться от хардкода
   --  stepper = foldp step initialState Keyboard.arrows
