@@ -1,0 +1,23 @@
+name:                monad-invaders
+version:             0.0.1
+synopsis:            A Space Invaders arcade game clone written in haskell using HELM framework
+-- description:         
+homepage:            https://github.com/geo2a/monad-invaders.git
+license:             MIT
+license-file:        LICENSE
+author:              Georgiy Lukjanov
+maintainer:          georgiylukjanov@gmail.com
+-- copyright:           
+category:            Game
+build-type:          Simple
+extra-source-files:  readme.md
+cabal-version:       >=1.10
+
+executable monad-invaders
+  main-is:             src/Main.hs             
+  -- other-modules:       
+  -- other-extensions:    
+  build-depends:       base >=4.7 && <4.8,
+                       helm >= 0.7
+  -- hs-source-dirs:      
+  default-language:    Haskell2010
