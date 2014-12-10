@@ -3,10 +3,11 @@ module Main where
 import Data.Ord 
 
 import FRP.Helm
-import qualified FRP.Helm.Graphics as Graphics
-import qualified FRP.Helm.Keyboard as Keyboard
-import qualified FRP.Helm.Window   as Window
-import qualified FRP.Helm.Text     as Text
+import qualified FRP.Helm.Graphics  as Graphics
+import qualified FRP.Helm.Keyboard  as Keyboard
+import qualified FRP.Helm.Window    as Window
+import qualified FRP.Helm.Text      as Text
+import qualified FRP.Helm.Color     as Color
 
 -- Disclaimer: в рабочей версии комментариев возможны 
 -- орфографические, синтаксические, пунктуационные, семантические
@@ -29,9 +30,13 @@ data GameState = GameState {status :: GameStatus}
 --data BackgroundState = BackgroundState {backgroundStatus :: GameStatus}
 
 -- Тип, описывающий состояние кораблика: 
---    (shipX, shipY - Координаты кораблика)
---    ()   
-data ShipState = ShipState {shipX :: Int, shipY :: Int} 
+--    shipX, shipY - Координаты кораблика
+--    rocketX, rocketY - Координаты выпущенной корабликом ракеты
+--    rocketFlying - Выпущена ли ракета
+--      На данный момент поддерживается только одина ракета, 
+--      надо придумать, как сделать много
+data ShipState = ShipState {shipX   :: Int, shipY   :: Int,
+                            rocketX :: Int, rocketY :: Int, rocketFlying :: Bool} 
 
 --------------------------------------------------------
 --------------Initialisation of resources---------------
@@ -80,15 +85,31 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
           let s = status state in
           if s == (maxBound :: GameStatus) then s else succ s
 
--- Сигнал кораблика, описывает поведение кораблика во времени
+-- Сигнал кораблика, описывает поведение кораблика и его ракет во времени
 shipSignal :: Signal ShipState
-shipSignal = foldp modifyState initialState Keyboard.arrows
+shipSignal = foldp modifyState initialState arrowsAndSpace 
   where 
-    initialState = ShipState {shipX = 300, shipY = 400} --TODO: Избавиться от хардкода
-    modifyState :: (Int,Int) -> ShipState -> ShipState
-    modifyState (dx,dy) state = state {shipX = shipX', shipY = shipY'}
-      where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
-            shipY' = shipY state
+    initialState = 
+      ShipState {shipX = 300, shipY = 400, 
+                 rocketX = 370, rocketY = 410, rocketFlying = False}
+    modifyState :: ((Int,Int),Bool) -> ShipState -> ShipState
+    modifyState ((dx,dy),fired) state = 
+      state {shipX = shipX', shipY = shipY',
+             rocketX = rocketX', rocketY = rocketY', 
+             rocketFlying = rocketFlying'}
+        where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
+              shipY' = shipY state
+              rocketX' = if   rocketFlying' 
+                         then rocketX state 
+                         else 0 -- TODO: скорректировать смешение ракеты к центру кораблика 
+              rocketY' = if   rocketFlying' 
+                         then rocketY state - 20 -- Равномерненько
+                         else rocketY initialState
+              rocketFlying' = False
+                              -- (fired && rocketY state == rocketY initialState)  || 
+                              -- (rocketFlying state && rocketY state > 0) -- Можно добавить возможность осечки
+    arrowsAndSpace :: Signal ((Int,Int), Bool)
+    arrowsAndSpace = (,) <~ Keyboard.arrows ~~ (Keyboard.isDown Keyboard.FKey)
 
 --------------------------------------------------------
 -----------------------Rendering------------------------
@@ -104,7 +125,7 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
   where 
     formatText = (Text.color $ color) . Text.bold . Text.header . Text.toText
     message = "Press Space to play"
-    color =  rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
+    color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
 
 -- Рендеринг форм на основе элементов (изображений в формате png) и состояний объектов 
 
@@ -121,17 +142,25 @@ shipForm :: ShipState -> Form
 shipForm state = move (fromIntegral $ shipX state,
                        fromIntegral $ shipY state) $ toForm spaceShipImg
 
+-- Ракета кораблика
+rocketForm :: ShipState -> Form
+rocketForm state =
+  move (fromIntegral $ rocketX state,
+        fromIntegral $ rocketY state) $ filled rocketColor $ rect 20 20
+  where
+    rocketColor = Color.red
+
 -- Рендеринг общей сцены 
 render :: (Int, Int) -> GameState -> ShipState -> Element
 render (w, h) gameState shipState =
   let gameStatus = status gameState in 
   case gameStatus of 
-    Startup   -> collage w h $ [backgroundForm gameStatus]
-    InProcess -> collage w h $ [backgroundForm gameStatus,shipForm shipState]
+    Startup   -> collage w h $ [backgroundForm gameStatus,shipForm shipState]
+    InProcess -> collage w h $ [backgroundForm gameStatus,shipForm shipState, rocketForm shipState]
     Over      -> collage w h $ [backgroundForm gameStatus]
 
 main :: IO ()
-main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal 
+main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal
   --where
   --  initialState = State { x = 300, y = 400} --TODO: Избавиться от хардкода
   --  stepper = foldp step initialState Keyboard.arrows
