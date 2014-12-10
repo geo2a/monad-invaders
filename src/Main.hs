@@ -100,27 +100,32 @@ shipSignal = foldp modifyState initialState Keyboard.arrows
         where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
               shipY' = shipY state
 
-rocketSignal :: Signal RocketState
-rocketSignal = foldp modifyState initialState controlSignal
-  -- (count $ Keyboard.isDown Keyboard.SpaceKey)
+-- Сигнал рокеты, зависит от сигнала кораблика.
+--   Можно стрелять, нажмая на пробел, движение управляется таймером. 
+--   TODO: БАГ!! Скорость движения ракеты зависит от нажатия на стрелочки 
+--         (управление карабликом) -- пока не придумал, как с этим бороться
+rocketSignal :: Signal ShipState -> Signal RocketState
+rocketSignal shipSignal = foldp modifyState initialState controlSignal
   where 
-    initialState = RocketState {rocketX = 300, rocketY = 600, rocketFlying = False}
+    initialState = RocketState {rocketX = 0, rocketY = 550, rocketFlying = False}
     
-    controlSignal :: Signal (Bool, Double)
-    controlSignal = lift2 (,) (Keyboard.isDown Keyboard.SpaceKey) (Time.every $ 100 * Time.millisecond)
+    controlSignal :: Signal (Bool, Double, ShipState)
+    controlSignal = lift3 (,,) (Keyboard.isDown Keyboard.SpaceKey) 
+                               (Time.every $ 100 * Time.millisecond)
+                               shipSignal
     
-    modifyState :: (Bool,Double) -> RocketState -> RocketState
-    modifyState (launched,time) state =
+    modifyState :: (Bool,Double,ShipState) -> RocketState -> RocketState
+    modifyState (launched,time,shipState) state =
       state {rocketX = rocketX', rocketY = rocketY', rocketFlying = rocketFlying'}
       where
         rocketX' = if   rocketFlying' 
                    then rocketX state 
-                   else rocketX initialState-- TODO: скорректировать смешение ракеты к центру кораблика 
+                   else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
         rocketY' = if   rocketFlying' 
                    then rocketY state - 20 -- Равномерненько
                    else rocketY initialState
-        rocketFlying' = launched || 
-                        (rocketY state > 0 && rocketY state < 600)
+        rocketFlying' = (launched) || 
+                        (rocketY state > 0 && rocketY state < rocketY initialState)
 
 --------------------------------------------------------
 -----------------------Rendering------------------------
@@ -167,11 +172,11 @@ render (w, h) gameState shipState rocketState =
   let gameStatus = status gameState in 
   case gameStatus of 
     Startup   -> collage w h $ [backgroundForm gameStatus,shipForm shipState]
-    InProcess -> collage w h $ [backgroundForm gameStatus,shipForm shipState, rocketForm rocketState]
+    InProcess -> collage w h $ [backgroundForm gameStatus,rocketForm rocketState, shipForm shipState]
     Over      -> collage w h $ [backgroundForm gameStatus]
 
 main :: IO ()
-main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal ~~ rocketSignal
+main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal ~~ (rocketSignal shipSignal)
   --where
   --  initialState = State { x = 300, y = 400} --TODO: Избавиться от хардкода
   --  stepper = foldp step initialState Keyboard.arrows
