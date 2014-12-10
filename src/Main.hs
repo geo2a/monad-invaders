@@ -90,13 +90,19 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
           if s == (maxBound :: GameStatus) then s else succ s
 
 -- Сигнал кораблика, описывает поведение кораблика и его ракет во времени
-shipSignal :: Signal ShipState
-shipSignal = foldp modifyState initialState Keyboard.arrows 
+shipSignal :: Signal GameState -> Signal ShipState
+shipSignal gameSignal = foldp modifyState initialState controlSignal
   where 
     initialState = ShipState {shipX = 300, shipY = 400}
-    modifyState :: (Int,Int) -> ShipState -> ShipState
-    modifyState (dx,dy) state = 
-      state {shipX = shipX', shipY = shipY'}
+    
+    controlSignal :: Signal ((Int,Int),GameState)
+    controlSignal = lift2 (,) Keyboard.arrows gameSignal
+
+    modifyState :: ((Int,Int),GameState) -> ShipState -> ShipState
+    modifyState ((dx,dy),gameState) state = 
+      if status gameState == InProcess
+      then state {shipX = shipX', shipY = shipY'}
+      else state
         where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
               shipY' = shipY state
 
@@ -104,19 +110,26 @@ shipSignal = foldp modifyState initialState Keyboard.arrows
 --   Можно стрелять, нажмая на пробел, движение управляется таймером. 
 --   TODO: БАГ!! Скорость движения ракеты зависит от нажатия на стрелочки 
 --         (управление карабликом) -- пока не придумал, как с этим бороться
-rocketSignal :: Signal ShipState -> Signal RocketState
-rocketSignal shipSignal = foldp modifyState initialState controlSignal
+--          
+--         ЕЩЁ БАГ!! При переходе в состояние InProcess происходит самопроизвольный 
+--         выстрел ракетой
+--
+rocketSignal :: Signal GameState -> Signal ShipState -> Signal RocketState
+rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSignal
   where 
-    initialState = RocketState {rocketX = 0, rocketY = 550, rocketFlying = False}
+    initialState = RocketState {rocketX = -20, rocketY = 550, rocketFlying = False}
     
-    controlSignal :: Signal (Bool, Double, ShipState)
-    controlSignal = lift3 (,,) (Keyboard.isDown Keyboard.SpaceKey) 
-                               (Time.every $ 100 * Time.millisecond)
-                               shipSignal
-    
-    modifyState :: (Bool,Double,ShipState) -> RocketState -> RocketState
-    modifyState (launched,time,shipState) state =
-      state {rocketX = rocketX', rocketY = rocketY', rocketFlying = rocketFlying'}
+    controlSignal :: Signal (Bool, Double, GameState, ShipState)
+    controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
+                                (Time.every $ 50 * Time.millisecond) -- тут скорость ракеты
+                                gameSignal
+                                shipSignal
+
+    modifyState :: (Bool, Double, GameState, ShipState) -> RocketState -> RocketState
+    modifyState (launched,time,gameState, shipState) state =
+      if status gameState == InProcess 
+      then state {rocketX = rocketX', rocketY = rocketY', rocketFlying = rocketFlying'}
+      else initialState
       where
         rocketX' = if   rocketFlying' 
                    then rocketX state 
@@ -124,7 +137,7 @@ rocketSignal shipSignal = foldp modifyState initialState controlSignal
         rocketY' = if   rocketFlying' 
                    then rocketY state - 20 -- Равномерненько
                    else rocketY initialState
-        rocketFlying' = (launched) || 
+        rocketFlying' = launched || 
                         (rocketY state > 0 && rocketY state < rocketY initialState)
 
 --------------------------------------------------------
@@ -147,10 +160,10 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
 
 -- Фон
 -- TODO: Можно добавить что-нибудь на фон (Хп кораблика, очки и т.п.)
-backgroundForm :: GameStatus -> Form
-backgroundForm Startup   = group [toForm backgroundImg,startupMessage] 
-backgroundForm InProcess = group [toForm backgroundImg,renderDebugString "InProcess"]
-backgroundForm Over      = group [toForm backgroundImg,renderDebugString "Over"]
+--backgroundForm :: GameStatus -> Form
+--backgroundForm Startup   = group [toForm backgroundImg,startupMessage] 
+--backgroundForm InProcess = group [toForm backgroundImg,renderDebugString "InProcess"]
+--backgroundForm Over      = group [toForm backgroundImg,renderDebugString "Over"]
 
 
 -- Кораблик
@@ -164,19 +177,27 @@ rocketForm state =
   move (fromIntegral $ rocketX state,
         fromIntegral $ rocketY state) $ filled rocketColor $ rect 20 20
   where
-    rocketColor = Color.red
+    rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (255.0 / 255) (0.7)
 
 -- Рендеринг общей сцены 
 render :: (Int, Int) -> GameState -> ShipState -> RocketState -> Element
 render (w, h) gameState shipState rocketState =
   let gameStatus = status gameState in 
   case gameStatus of 
-    Startup   -> collage w h $ [backgroundForm gameStatus,shipForm shipState]
-    InProcess -> collage w h $ [backgroundForm gameStatus,rocketForm rocketState, shipForm shipState]
-    Over      -> collage w h $ [backgroundForm gameStatus]
+    Startup -> collage w h $ 
+      [toForm backgroundImg,startupMessage,shipForm shipState]
+    InProcess -> collage w h $ 
+      [toForm backgroundImg,renderDebugString "InProcess",
+       rocketForm rocketState, shipForm shipState]
+    Over -> collage w h $ 
+      [toForm backgroundImg,renderDebugString "Over"]
 
 main :: IO ()
-main = run engineConfig $ render <~ Window.dimensions ~~ gameSignal ~~ shipSignal ~~ (rocketSignal shipSignal)
+main = 
+  let shipSignal'   = shipSignal gameSignal
+      rocketSignal' = rocketSignal gameSignal shipSignal' 
+  in  run engineConfig $ render <~ 
+    Window.dimensions ~~ gameSignal ~~ shipSignal' ~~ rocketSignal'
   --where
   --  initialState = State { x = 300, y = 400} --TODO: Избавиться от хардкода
   --  stepper = foldp step initialState Keyboard.arrows
