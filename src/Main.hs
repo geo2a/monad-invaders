@@ -91,7 +91,7 @@ shipSignal = foldp modifyState initialState arrowsAndSpace
   where 
     initialState = 
       ShipState {shipX = 300, shipY = 400, 
-                 rocketX = 370, rocketY = 410, rocketFlying = False}
+                 rocketX = 370, rocketY = 600, rocketFlying = False}
     modifyState :: ((Int,Int),Bool) -> ShipState -> ShipState
     modifyState ((dx,dy),fired) state = 
       state {shipX = shipX', shipY = shipY',
@@ -101,13 +101,13 @@ shipSignal = foldp modifyState initialState arrowsAndSpace
               shipY' = shipY state
               rocketX' = if   rocketFlying' 
                          then rocketX state 
-                         else 0 -- TODO: скорректировать смешение ракеты к центру кораблика 
+                         else rocketX initialState-- TODO: скорректировать смешение ракеты к центру кораблика 
               rocketY' = if   rocketFlying' 
                          then rocketY state - 20 -- Равномерненько
                          else rocketY initialState
-              rocketFlying' = False
-                              -- (fired && rocketY state == rocketY initialState)  || 
-                              -- (rocketFlying state && rocketY state > 0) -- Можно добавить возможность осечки
+              rocketFlying' = -- пока работает неверно
+                               (fired && (rocketY state == rocketY initialState)) || 
+                               (rocketY state >= 0 && rocketY state <= 600) -- Можно добавить возможность осечки
     arrowsAndSpace :: Signal ((Int,Int), Bool)
     arrowsAndSpace = (,) <~ Keyboard.arrows ~~ (Keyboard.isDown Keyboard.FKey)
 
