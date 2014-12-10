@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Shell script for running last build
+
+dist/build/monad-invaders/monad-invaders
