@@ -8,6 +8,10 @@ import qualified FRP.Helm.Keyboard as Keyboard
 import qualified FRP.Helm.Window   as Window
 import qualified FRP.Helm.Text     as Text
 
+-- Disclaimer: в рабочей версии комментариев возможны 
+-- орфографические, синтаксические, пунктуационные, семантические
+-- и другие ошибки. 
+
 --------------------------------------------------------
 -------------Types for game enteties states-------------
 --------------------------------------------------------
@@ -50,14 +54,27 @@ spaceShipImg = Graphics.fittedImage 140 200 "Graphics/ship_pencil.png"
 -----------------------Game logic-----------------------
 --------------------------------------------------------
 
--- Главный сигнал игры
+-- Главный сигнал игры. Описывает изменения состояния игры (GameState).
+{-- 
+  На данный момент работает так:
+    В начале поле структуры status структуры GameState 
+    имеет значение Startup (элемент перечисления GameStatus) -- 
+    на экране изображено приглашение к началу игры.
+    После первого нажатия на пробел поле status ппринимает значение 
+    InProcess, то есть игра переходит в активное состояние, на экране
+    виден кораблик, можно двигать его стрелочками.
+
+  TODO: Реализовать переход в состояние Over, для этого надо расширить 
+        состояние кораблика и его сигнал, а в сигнале игры обработать 
+        "смерть" кораблика
+--}
 gameSignal :: Signal GameState
 gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
   where
     initialState = GameState {status = Startup}
     modifyState :: Bool -> GameState -> GameState
     modifyState pressed state = 
-      if pressed then state {status = nextStatus} else state
+      if pressed && (status state == Startup) then state {status = nextStatus} else state
       where
         nextStatus = 
           let s = status state in
@@ -77,20 +94,26 @@ shipSignal = foldp modifyState initialState Keyboard.arrows
 -----------------------Rendering------------------------
 --------------------------------------------------------
 
-renderString :: String -> Form
-renderString = move (300, 100) . toForm . Text.plainText
+-- TODO: ИСКОРЕНИТЬ ХАРДКОД!!1!11
 
---startupMessage :: String -> Form 
---startupMessage = move (300, 100) . toForm . 
+renderDebugString :: String -> Form
+renderDebugString = move (400, 100) . toForm . Text.plainText
+
+startupMessage :: Form 
+startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
+  where 
+    formatText = (Text.color $ color) . Text.bold . Text.header . Text.toText
+    message = "Press Space to play"
+    color =  rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
 
 -- Рендеринг форм на основе элементов (изображений в формате png) и состояний объектов 
 
 -- Фон
 -- TODO: Можно добавить что-нибудь на фон (Хп кораблика, очки и т.п.)
 backgroundForm :: GameStatus -> Form
-backgroundForm Startup   = group [toForm backgroundImg,renderString "Sturtup"] 
-backgroundForm InProcess = group [toForm backgroundImg,renderString "InProcess"]
-backgroundForm Over      = group [toForm backgroundImg,renderString "Over"]
+backgroundForm Startup   = group [toForm backgroundImg,startupMessage] 
+backgroundForm InProcess = group [toForm backgroundImg,renderDebugString "InProcess"]
+backgroundForm Over      = group [toForm backgroundImg,renderDebugString "Over"]
 
 
 -- Кораблик
