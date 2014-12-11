@@ -18,6 +18,12 @@ import qualified FRP.Helm.Time      as Time
 -------------Types for game enteties states-------------
 --------------------------------------------------------
 
+-- Конфигурационная информация, будет представлена константным сигналом
+data GameConfig = GameConfig {
+  windowDims :: (Int,Int),
+  shipDims   :: (Int,Int),
+  rocketDims :: (Int,Int)}
+
 -- Статус игры: ещё не начата, в процессе, окончена
 data GameStatus = Startup | InProcess | Over
   deriving (Enum, Bounded,Eq)
@@ -28,7 +34,6 @@ data GameState = GameState {status :: GameStatus}
 --    До старта игры выводится приграшение к старту
 --    В процессе игры выводится количество очков и здоровье кораблика
 --    При проигрыше выводится соответсвующее сообщение
---data BackgroundState = BackgroundState {backgroundStatus :: GameStatus}
 
 -- Тип, описывающий состояние кораблика: 
 --    shipX, shipY - Координаты кораблика
@@ -39,22 +44,34 @@ data GameState = GameState {status :: GameStatus}
 data ShipState = ShipState {shipX :: Int, shipY :: Int} 
 
 data RocketState = RocketState {
-  rocketX :: Int, rocketY :: Int, rocketFlying :: Bool
-}
+  rocketX :: Int, rocketY :: Int, rocketFlying :: Bool}
 
 --------------------------------------------------------
 --------------Initialisation of resources---------------
 --------------------------------------------------------
 
+-- Главный конфиг игры, управляет почти всеми параметрами
+gameConfig :: GameConfig
+gameConfig = GameConfig {
+      windowDims = (800,800),
+      shipDims   = (140,200),
+      rocketDims = (20,20)
+  }
+
 -- Конфигурационная информация для библиотеки: размеры окна, заголовок окна, что-то там ещё
-engineConfig :: EngineConfig
-engineConfig = EngineConfig (800,600) False False "Monad Invaders v0.0.1"
+engineConfig :: GameConfig -> EngineConfig
+engineConfig gameConfig = 
+  EngineConfig (windowDims gameConfig) False False "Monad Invaders v0.0.1"
 
-backgroundImg :: Element
-backgroundImg = Graphics.fittedImage 800 600 "Graphics/paper_fullhd_20.png"
+backgroundImg :: GameConfig -> Element
+backgroundImg gameConfig = Graphics.fittedImage 
+                (fst . windowDims $ gameConfig)
+                (snd . windowDims $ gameConfig) "Graphics/paper_fullhd_20.png"
 
-spaceShipImg :: Element
-spaceShipImg = Graphics.fittedImage 140 200 "Graphics/ship_pencil.png"
+spaceShipImg :: GameConfig -> Element
+spaceShipImg gameConfig = Graphics.fittedImage 
+                (fst . shipDims $ gameConfig) 
+                (snd . shipDims $ gameConfig) "Graphics/ship_pencil.png"
 
 --redInvaderImg :: Element
 --redInvaderImg = Graphics.fittedImage 100 100 "img/red_invader.png"
@@ -81,9 +98,15 @@ gameSignal :: Signal GameState
 gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
   where
     initialState = GameState {status = Startup}
+
+    --controlSignal :: Signal (Bool,(Int,Int))
+    --controlSignal = lift2 (,) (Keyboard.isDown Keyboard.SpaceKey)
+
     modifyState :: Bool -> GameState -> GameState
     modifyState pressed state = 
-      if pressed && (status state == Startup) then state {status = nextStatus} else state
+      if pressed && (status state == Startup) 
+      then state {status = nextStatus} 
+      else state {status = status state}
       where
         nextStatus = 
           let s = status state in
@@ -93,7 +116,11 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
 shipSignal :: Signal GameState -> Signal ShipState
 shipSignal gameSignal = foldp modifyState initialState controlSignal
   where 
-    initialState = ShipState {shipX = 300, shipY = 400}
+    initialState = 
+      let (w,h)   = windowDims gameConfig
+          (sw,sh) = shipDims   gameConfig
+      in ShipState {shipX = w `div` 2 - sw `div` 2 - 10, 
+                    shipY = h - sh}
     
     controlSignal :: Signal ((Int,Int),GameState)
     controlSignal = lift2 (,) Keyboard.arrows gameSignal
@@ -169,7 +196,7 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
 -- Кораблик
 shipForm :: ShipState -> Form
 shipForm state = move (fromIntegral $ shipX state,
-                       fromIntegral $ shipY state) $ toForm spaceShipImg
+                       fromIntegral $ shipY state) $ toForm (spaceShipImg gameConfig)
 
 -- Ракета кораблика
 rocketForm :: RocketState -> Form
@@ -185,20 +212,18 @@ render (w, h) gameState shipState rocketState =
   let gameStatus = status gameState in 
   case gameStatus of 
     Startup -> collage w h $ 
-      [toForm backgroundImg,startupMessage,shipForm shipState]
+      [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState]
     InProcess -> collage w h $ 
-      [toForm backgroundImg,renderDebugString "InProcess",
+      [toForm (backgroundImg gameConfig),renderDebugString "InProcess",
        rocketForm rocketState, shipForm shipState]
     Over -> collage w h $ 
-      [toForm backgroundImg,renderDebugString "Over"]
+      [toForm (backgroundImg gameConfig),renderDebugString "Over"]
 
 main :: IO ()
 main = 
-  let shipSignal'   = shipSignal gameSignal
+  let windowSignal = Window.dimensions
+      shipSignal'   = shipSignal gameSignal
       rocketSignal' = rocketSignal gameSignal shipSignal' 
-  in  run engineConfig $ render <~ 
-    Window.dimensions ~~ gameSignal ~~ shipSignal' ~~ rocketSignal'
-  --where
-  --  initialState = State { x = 300, y = 400} --TODO: Избавиться от хардкода
-  --  stepper = foldp step initialState Keyboard.arrows
+  in  run (engineConfig gameConfig) $ render <~ 
+        windowSignal ~~ gameSignal ~~ shipSignal' ~~ rocketSignal'
 
