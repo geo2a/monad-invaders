@@ -163,9 +163,10 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
                    else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
         rocketY' = if   rocketFlying' 
                    then rocketY state - 20 -- Равномерненько
-                   else rocketY initialState
+                   else shipY shipState + 150
         rocketFlying' = launched || 
-                        (rocketY state > 0 && rocketY state < rocketY initialState)
+                        (rocketY state > 0 && 
+                          rocketY state < (snd . windowDims $ gameConfig) - 60)
 
 --------------------------------------------------------
 -----------------------Rendering------------------------
