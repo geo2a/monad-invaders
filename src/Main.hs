@@ -41,7 +41,7 @@ data GameState = GameState {status :: GameStatus}
 --    rocketFlying - Выпущена ли ракета
 --      На данный момент поддерживается только одина ракета, 
 --      надо придумать, как сделать много
-data ShipState = ShipState {shipX :: Int, shipY :: Int} 
+data ShipState = ShipState {shipX :: Int, shipY :: Int, shipHP :: Int} 
 
 data RocketState = RocketState {
   rocketX :: Int, rocketY :: Int, rocketFlying :: Bool}
@@ -53,7 +53,7 @@ data RocketState = RocketState {
 -- Главный конфиг игры, управляет почти всеми параметрами
 gameConfig :: GameConfig
 gameConfig = GameConfig {
-      windowDims = (800,800),
+      windowDims = (800,600),
       shipDims   = (140,200),
       rocketDims = (20,20)
   }
@@ -120,7 +120,7 @@ shipSignal gameSignal = foldp modifyState initialState controlSignal
       let (w,h)   = windowDims gameConfig
           (sw,sh) = shipDims   gameConfig
       in ShipState {shipX = w `div` 2 - sw `div` 2 - 10, 
-                    shipY = h - sh}
+                    shipY = h - sh, shipHP = 100}
     
     controlSignal :: Signal ((Int,Int),GameState)
     controlSignal = lift2 (,) Keyboard.arrows gameSignal
@@ -199,6 +199,17 @@ shipForm :: ShipState -> Form
 shipForm state = move (fromIntegral $ shipX state,
                        fromIntegral $ shipY state) $ toForm (spaceShipImg gameConfig)
 
+-- Здоровье кораблика
+shipHPForm :: ShipState -> Form 
+shipHPForm state = 
+  let (w,h) = windowDims gameConfig 
+  in move (fromIntegral $ w `div` 10, 
+           fromIntegral $ h - 50) $ toForm . Text.text . formatText $ message
+  where 
+    formatText = (Text.color $ color) . Text.bold . Text.toText
+    message = "Health: " ++ (show (shipHP state))
+    color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
+
 -- Ракета кораблика
 rocketForm :: RocketState -> Form
 rocketForm state =
@@ -216,7 +227,7 @@ render (w, h) gameState shipState rocketState =
       [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState]
     InProcess -> collage w h $ 
       [toForm (backgroundImg gameConfig),renderDebugString "InProcess",
-       rocketForm rocketState, shipForm shipState]
+       rocketForm rocketState, shipForm shipState, shipHPForm shipState]
     Over -> collage w h $ 
       [toForm (backgroundImg gameConfig),renderDebugString "Over"]
 
