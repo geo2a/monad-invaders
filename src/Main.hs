@@ -53,9 +53,9 @@ data RocketState = RocketState {
 -- Главный конфиг игры, управляет почти всеми параметрами
 gameConfig :: GameConfig
 gameConfig = GameConfig {
-      windowDims = (800,600),
-      shipDims   = (140,200),
-      rocketDims = (20,20)
+      windowDims = (450,800),
+      shipDims   = (70,100),
+      rocketDims = (10,10)
   }
 
 -- Конфигурационная информация для библиотеки: размеры окна, заголовок окна, что-то там ещё
@@ -66,12 +66,12 @@ engineConfig gameConfig =
 backgroundImg :: GameConfig -> Element
 backgroundImg gameConfig = Graphics.fittedImage 
                 (fst . windowDims $ gameConfig)
-                (snd . windowDims $ gameConfig) "Graphics/paper_fullhd_20.png"
+                (snd . windowDims $ gameConfig) "Graphics/3310screen.png"
 
 spaceShipImg :: GameConfig -> Element
 spaceShipImg gameConfig = Graphics.fittedImage 
                 (fst . shipDims $ gameConfig) 
-                (snd . shipDims $ gameConfig) "Graphics/ship_pencil.png"
+                (snd . shipDims $ gameConfig) "Graphics/3310ship.png"
 
 --redInvaderImg :: Element
 --redInvaderImg = Graphics.fittedImage 100 100 "img/red_invader.png"
@@ -162,7 +162,7 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
                    then rocketX state 
                    else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
         rocketY' = if   rocketFlying' 
-                   then rocketY state - 20 -- Равномерненько
+                   then rocketY state - 10 -- Равномерненько
                    else shipY shipState + 150
         rocketFlying' = launched || 
                         (rocketY state > 0 && 
@@ -214,7 +214,9 @@ shipHPForm state =
 rocketForm :: RocketState -> Form
 rocketForm state =
   move (fromIntegral $ rocketX state,
-        fromIntegral $ rocketY state) $ filled rocketColor $ rect 20 20
+        fromIntegral $ rocketY state) $ filled rocketColor $ 
+                                          rect (fromIntegral . fst . rocketDims $ gameConfig)
+                                               (fromIntegral . snd . rocketDims $ gameConfig)
   where
     rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (255.0 / 255) (0.7)
 
