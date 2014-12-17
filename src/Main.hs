@@ -157,7 +157,7 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
     
     controlSignal :: Signal (Bool, Double, GameState, ShipState)
     controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
-                                (Time.every $ 50 * Time.millisecond) -- тут скорость ракеты
+                                (Time.every $ 25 * Time.millisecond) -- тут скорость ракеты
                                 gameSignal
                                 shipSignal
 
@@ -187,9 +187,11 @@ renderDebugString :: String -> Form
 renderDebugString = move (400, 100) . toForm . Text.plainText
 
 startupMessage :: Form 
-startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
-  where 
-    formatText = (Text.color $ color) . Text.bold . Text.header . Text.toText
+startupMessage = move (posX, posY) . toForm . Text.text . formatText $ message
+  where
+    posX = 200
+    posY = 100
+    formatText = (Text.color $ color) . Text.bold . (Text.height 25) . Text.toText
     message = "Press Space to play"
     color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
 
@@ -197,11 +199,6 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
 
 -- Фон
 -- TODO: Можно добавить что-нибудь на фон (Хп кораблика, очки и т.п.)
---backgroundForm :: GameStatus -> Form
---backgroundForm Startup   = group [toForm backgroundImg,startupMessage] 
---backgroundForm InProcess = group [toForm backgroundImg,renderDebugString "InProcess"]
---backgroundForm Over      = group [toForm backgroundImg,renderDebugString "Over"]
-
 
 -- Кораблик
 shipForm :: ShipState -> Form
@@ -212,8 +209,8 @@ shipForm state = move (fromIntegral $ shipX state,
 shipHPForm :: ShipState -> Form 
 shipHPForm state = 
   let (w,h) = windowDims gameConfig 
-  in move (fromIntegral $ w `div` 10, 
-           fromIntegral $ h - 50) $ toForm . Text.text . formatText $ message
+  in move (70, 
+           fromIntegral $ h - 30) $ toForm . Text.text . formatText $ message
   where 
     formatText = (Text.color $ color) . Text.bold . Text.toText
     message = "Health: " ++ (show (shipHP state))
