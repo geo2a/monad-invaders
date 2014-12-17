@@ -119,7 +119,7 @@ shipSignal gameSignal = foldp modifyState initialState controlSignal
     initialState = 
       let (w,h)   = windowDims gameConfig
           (sw,sh) = shipDims   gameConfig
-      in ShipState {shipX = w `div` 2 - sw `div` 2 - 10, 
+      in ShipState {shipX = w `div` 2 - sw `div` 2, 
                     shipY = h - sh, shipHP = 100}
     
     controlSignal :: Signal ((Int,Int),GameState)
@@ -130,21 +130,30 @@ shipSignal gameSignal = foldp modifyState initialState controlSignal
       if status gameState == InProcess
       then state {shipX = shipX', shipY = shipY'}
       else state
-        where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
+        where shipX' = shipX state + 20 * dx
               shipY' = shipY state
 
 -- Сигнал ракеты, зависит от сигнала кораблика.
 --   Можно стрелять, нажмая на пробел, движение управляется таймером. 
 --   TODO: БАГ!! Скорость движения ракеты зависит от нажатия на стрелочки 
 --         (управление карабликом) -- пока не придумал, как с этим бороться
---          
---         ЕЩЁ БАГ!! При переходе в состояние InProcess происходит самопроизвольный 
---         выстрел ракетой
---
+--         Дело в том, что сигнал кораблика является частью управляющего сигнала ракеты
+--         но что с этим делать -- не понятно.
+--         
+--         Ещё БАГ!!! Первый выстрел происходит по нажатию на пробел, 
+--         который относится к старту игры, а не к выстрелам
+--   В этой функции  есть хардкод: он отражает положение ракеты относительно кораблика и 
+--   количество пикселей, на которые смещается ракета при полёте
 rocketSignal :: Signal GameState -> Signal ShipState -> Signal RocketState
 rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSignal
   where 
-    initialState = RocketState {rocketX = -20, rocketY = 550, rocketFlying = False}
+    initialState = RocketState {
+      rocketX = -100,
+      rocketY = (fromIntegral . snd . windowDims $ gameConfig) - 25, 
+      rocketFlying = False}
+        where
+          w  = fst . windowDims $ gameConfig
+          sw = fst . shipDims   $ gameConfig 
     
     controlSignal :: Signal (Bool, Double, GameState, ShipState)
     controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
@@ -160,10 +169,10 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
       where
         rocketX' = if   rocketFlying' 
                    then rocketX state 
-                   else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
+                   else shipX shipState + 35
         rocketY' = if   rocketFlying' 
                    then rocketY state - 10 -- Равномерненько
-                   else shipY shipState + 150
+                   else rocketY initialState
         rocketFlying' = launched || 
                         (rocketY state > 0 && 
                           rocketY state < (snd . windowDims $ gameConfig) - 60)
@@ -218,7 +227,7 @@ rocketForm state =
                                           rect (fromIntegral . fst . rocketDims $ gameConfig)
                                                (fromIntegral . snd . rocketDims $ gameConfig)
   where
-    rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (255.0 / 255) (0.7)
+    rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (0.0 / 255) (0.7)
 
 -- Рендеринг общей сцены 
 render :: (Int, Int) -> GameState -> ShipState -> RocketState -> Element
@@ -226,7 +235,8 @@ render (w, h) gameState shipState rocketState =
   let gameStatus = status gameState in 
   case gameStatus of 
     Startup -> collage w h $ 
-      [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState]
+      [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState,
+       rocketForm rocketState]
     InProcess -> collage w h $ 
       [toForm (backgroundImg gameConfig),renderDebugString "InProcess",
        rocketForm rocketState, shipForm shipState, shipHPForm shipState]
