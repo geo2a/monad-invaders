@@ -155,13 +155,13 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
           w  = fst . windowDims $ gameConfig
           sw = fst . shipDims   $ gameConfig 
     
-    controlSignal :: Signal (Bool, Double, GameState, ShipState)
+    controlSignal :: Signal (Bool, Time, GameState, ShipState)
     controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
                                 (Time.every $ 25 * Time.millisecond) -- тут скорость ракеты
                                 gameSignal
                                 shipSignal
 
-    modifyState :: (Bool, Double, GameState, ShipState) -> RocketState -> RocketState
+    modifyState :: (Bool, Time, GameState, ShipState) -> RocketState -> RocketState
     modifyState (launched,time,gameState, shipState) state =
       if status gameState == InProcess 
       then state {rocketX = rocketX', rocketY = rocketY', rocketFlying = rocketFlying'}
