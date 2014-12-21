@@ -28,13 +28,14 @@ data InvaderState = InvaderState {invaderX :: Int, invaderY :: Int, invaderM :: 
 data InvaderMovement = R|D|L|U 
    deriving (Eq)
 
+-- Главный конфиг игры, управляет почти всеми параметрами
 gameConfig :: GameConfig
 gameConfig = GameConfig {
-      windowDims = (800,600),
-      shipDims   = (140,200),
-      rocketDims = (20,20),
+      windowDims = (450,800),
+      shipDims   = (70,100),
+      rocketDims = (10,10),
       invaderDims = (100,100)
-}
+  }
 
 
 engineConfig :: GameConfig -> EngineConfig
@@ -44,11 +45,10 @@ engineConfig gameConfig =
 backgroundImg :: GameConfig -> Element
 backgroundImg gameConfig = Graphics.fittedImage 
                 (fst . windowDims $ gameConfig)
-                (snd . windowDims $ gameConfig) "paper_fullhd_20.png"
-
+                (snd . windowDims $ gameConfig) "Graphics/3310screen.png"
 
 redInvaderImg ::GameConfig -> Element
-redInvaderImg gameConfig = Graphics.fittedImage (fst . invaderDims $ gameConfig) (snd . invaderDims $ gameConfig) "red_invader.png"
+redInvaderImg gameConfig = Graphics.fittedImage (fst . invaderDims $ gameConfig) (snd . invaderDims $ gameConfig) "Graphics/red_invader.png"
 
 gameSignal :: Signal GameState
 gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
@@ -64,12 +64,18 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
           let s = status state in (succ s)
 
 invaderSignal :: Signal GameState -> Signal InvaderState
-invaderSignal gameSignal = foldp modifyState  initialState gameSignal
+invaderSignal gameSignal = foldp modifyState  initialState controlSignal
    where 
-     initialState = InvaderState {invaderX = 150, invaderY = 150, invaderM = R}
-     modifyState :: GameState -> InvaderState -> InvaderState
-     modifyState gameState state = 
-      if (status gameState == InProcess)
+    initialState = InvaderState {invaderX = 150, invaderY = 150, invaderM = R}
+     
+    controlSignal :: Signal (GameState,Time,Bool)
+    controlSignal = lift3 (,,) gameSignal 
+                              (Time.every $ 1000 * Time.millisecond)
+                              (Keyboard.isDown Keyboard.SpaceKey)
+
+    modifyState :: (GameState,Time,Bool) -> InvaderState -> InvaderState
+    modifyState (gameState,time,pressed) state = 
+      if (status gameState == InProcess) && not pressed
       then state {invaderX = invaderX', invaderY = invaderY', invaderM = invaderM'}
       else state
         where 
