@@ -48,7 +48,8 @@ backgroundImg gameConfig = Graphics.fittedImage
                 (snd . windowDims $ gameConfig) "Graphics/3310screen.png"
 
 redInvaderImg ::GameConfig -> Element
-redInvaderImg gameConfig = Graphics.fittedImage (fst . invaderDims $ gameConfig) (snd . invaderDims $ gameConfig) "Graphics/red_invader.png"
+redInvaderImg gameConfig = Graphics.fittedImage (fst . invaderDims $ gameConfig) 
+  (snd . invaderDims $ gameConfig) "Graphics/invader.png"
 
 gameSignal :: Signal GameState
 gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
