@@ -112,7 +112,7 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
           let s = status state in
           if s == (maxBound :: GameStatus) then s else succ s
 
--- Сигнал кораблика, описывает поведение кораблика и его ракет во времени
+-- Сигнал кораблика, описывает поведение кораблика во времени
 shipSignal :: Signal GameState -> Signal ShipState
 shipSignal gameSignal = foldp modifyState initialState controlSignal
   where 
