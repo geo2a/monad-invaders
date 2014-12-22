@@ -25,7 +25,7 @@ data GameState = GameState {status :: GameStatus}
 
 data InvaderState = InvaderState {invaderX :: Int, invaderY :: Int, invaderM :: InvaderMovement}
 
-data InvaderMovement = R|D|L|U 
+data InvaderMovement = R|D|L|D2
    deriving (Eq)
 
 gameConfig :: GameConfig
@@ -63,22 +63,28 @@ gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
         nextStatus = 
           let s = status state in (succ s)
 
-invaderSignal :: Signal GameState -> Signal InvaderState
-invaderSignal gameSignal = foldp modifyState  initialState gameSignal
+invaderSignal :: Signal GameState -> Signal [InvaderState]
+invaderSignal gameSignal  = foldp modifyState  initialState controlSignal
    where 
-     initialState = InvaderState {invaderX = 150, invaderY = 150, invaderM = R}
-     modifyState :: GameState -> InvaderState -> InvaderState
-     modifyState gameState state = 
-      if (status gameState == InProcess)
-      then state {invaderX = invaderX', invaderY = invaderY', invaderM = invaderM'}
-      else state
-        where 
-           (invaderX',invaderY', invaderM') = case (invaderX state,invaderY state , invaderM state ) of
-                                                (x,y,m) | x < 190 && m == R ->  (x + 20,y, R)
-                                                        | m == R -> (x,y +20 , D)
-                                                        | m == D -> (x - 20, y,L)
-                                                        | m == L -> (x-20,y, U)
-                                                        | otherwise -> (x,y -20,R)
+     initialState = zipWith (\ n state -> state {invaderX = (fst . invaderDims $ gameConfig )*(n-1) +20 })  [1..7] 
+                                               (replicate 7 $ InvaderState {invaderX = 0, invaderY = 150, invaderM = R})
+
+     controlSignal :: Signal (GameState,Time,Bool)
+     controlSignal = lift3 (,,) gameSignal
+                     (Time.every $ 1000 * Time.millisecond)
+                     (Keyboard.isDown Keyboard.SpaceKey)
+     modifyState :: (GameState,Time,Bool) -> [InvaderState] -> [InvaderState]
+     modifyState (gameState,time, pressed) states =
+                       if (status gameState == InProcess) && not  pressed
+                       then (zipWith (\n st -> f st n) [1..length states] states)
+                       else states
+		       where
+                          f state n = let (x',y',m') = (case (invaderX state,invaderY state , invaderM state ) of
+                                                               (x,y,m) | x < 40 + (fst . invaderDims $ gameConfig )*(n-1) && m == R -> (x + 20,y, R)
+                                                                       | m == R -> (x,y +20 , D)
+                                                                       | m == D -> (x - 20, y,L)
+                                                                       | m == L -> (x-20,y, D2)
+                                                                       | otherwise -> (x,y +20,R) ) in  InvaderState {invaderX = x', invaderY = y' , invaderM = m'}
 
 renderDebugString :: String -> Form
 renderDebugString = move (400, 100) . toForm . Text.plainText
@@ -91,25 +97,23 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
     color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
 
 invaderForm :: InvaderState -> Form
-invaderForm state = move (fromIntegral $ invaderX state,
+invaderForm state = move (fromIntegral $ invaderX state ,
                        fromIntegral $ invaderY state) $ toForm (redInvaderImg gameConfig)
 
-render :: (Int, Int) -> GameState -> InvaderState -> Element
+render :: (Int, Int) -> GameState -> [InvaderState] -> Element
 render (w, h) gameState invaderState =
   let gameStatus = status gameState in 
   case gameStatus of 
     Startup -> collage w h $ 
-      [toForm (backgroundImg gameConfig),startupMessage,invaderForm invaderState]
+      [toForm (backgroundImg gameConfig),startupMessage] ++ (map invaderForm invaderState )
     InProcess -> collage w h $ 
-      [toForm (backgroundImg gameConfig),renderDebugString "InProcess",
-       invaderForm invaderState]
-   {- Over -> collage w h $ 
-      [toForm (backgroundImg gameConfig),renderDebugString "Over"]-}
+      [toForm (backgroundImg gameConfig),renderDebugString "InProcess"] ++ (map invaderForm invaderState )
 
 main :: IO ()
 main = 
   let windowSignal = Window.dimensions
-      invaderSignal' = invaderSignal gameSignal
+      invaderSignal' = invaderSignal gameSignal 
+      --gameSignal' = gameSignal invaderSignal'
   in  run (engineConfig gameConfig) $ render <~ 
         windowSignal ~~ gameSignal ~~ invaderSignal' 
 
