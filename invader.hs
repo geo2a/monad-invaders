@@ -101,14 +101,14 @@ invaderSignal color gameSignal rocketSignal = foldp modifyState  initialState co
                        then (zipWith (\n st -> if (rocketFlying  rocket ) then f (murder st)  n else f st n) [1..length states] states)
                        else states
 		       where
-                        murder state = let isalive = (null . intersect [rocketX rocket..rocketX rocket + 20]) [invaderX state..invaderX state +100] in
+                        murder state = let isalive = (null . intersect [rocketX rocket +1..rocketX rocket + 19]) [invaderX state..invaderX state +40] in
                                                         if isalive then state else state{isAlive = False}  
                         f state n = let (x',y',m',a')=(case (invaderX state,invaderY state , invaderM state, isAlive state) of
                                                       (x,y,m,a)| x < 40 + (fst . invaderDims $ gameConfig )*(n-1) && m == R -> (x + 20,y, R,a)
-                                                               | m == R -> (x,y +20 , D,a)
+                                                               | m == R -> (x,y +2 , D,a)
                                                                | m == D -> (x - 20, y,L,a)
                                                                | m == L -> (x-20,y, D2,a)
-                                                               | otherwise -> (x,y +20,R,a) ) in  InvaderState {invaderX = x',invaderY = y',invaderM = m',isAlive= a'}
+                                                               | otherwise -> (x,y +2,R,a) ) in  InvaderState {invaderX = x',invaderY = y',invaderM = m',isAlive= a'}
 
 
 shipSignal :: Signal GameState -> Signal ShipState
@@ -128,17 +128,17 @@ shipSignal gameSignal = foldp modifyState initialState controlSignal
       if status gameState == InProcess
       then state {shipX = shipX', shipY = shipY'}
       else state
-        where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
+        where shipX' = shipX state + 40 * dx --TODO: Мб стоит вынести константу в конфигурацию
               shipY' = shipY state
 
 rocketSignal :: Signal GameState -> Signal ShipState -> Signal RocketState
 rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSignal
   where 
-    initialState = RocketState {rocketX = -20, rocketY = 550, rocketFlying = False}
+    initialState = RocketState {rocketX = -30, rocketY = 550, rocketFlying = False}
     
     controlSignal :: Signal (Bool, Double, GameState, ShipState)
     controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
-                                (Time.every $ 50 * Time.millisecond) -- тут скорость ракеты
+                                (Time.every $ 30 * Time.millisecond) -- тут скорость ракеты
                                 gameSignal
                                 shipSignal
 
@@ -153,7 +153,7 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
                    else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
         rocketY' = if   rocketFlying' 
                    then rocketY state - 20 -- Равномерненько
-                   else shipY shipState + 200
+                   else shipY shipState + 150
         rocketFlying' = launched || 
                         (rocketY state > 0 && 
                           rocketY state < (snd . windowDims $ gameConfig) - 60)
@@ -186,6 +186,10 @@ rocketForm state =
   where
     rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (255.0 / 255) (0.7)
 
+--нужно поправить размеры захватчика , поправить конфигурацию изначальную (размеры)
+--ну и скорость кораблика не радует , должен двигаться при удерживании стрелок
+--добавить счет(не знаю , что под этим предполагает логика игры. Число убитых захватчиков? )
+--
 
 
 
@@ -197,12 +201,17 @@ render (w, h) gameState rInvState bInvState gInvState shipState rocketState=
       [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState] ++ (map (invaderForm 0) rInvState )++
 			 (map (invaderForm 1) bInvState ) ++ ( map (invaderForm 2) gInvState )                                           
    InProcess -> let (gInvState',bInvState',rInvState') = (filterInv gInvState,filterInv bInvState,filterInv rInvState)in
-                case (any (\x -> invaderY x >= 350) $ rInvState ++ bInvState++gInvState) of
-                   True -> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "Over"]
-                   _-> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "InProcess", shipForm shipState,rocketForm rocketState] ++ 
-                           (map (invaderForm 0) rInvState') ++ (map (invaderForm 1) bInvState' )++ (map (invaderForm 2) gInvState' )
+                case shipWin gInvState' bInvState' rInvState' of
+                   True -> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "Game over , you win!"]
+                   _-> case (any (\x -> invaderY x >= 350) $ rInvState ++ bInvState++gInvState) of
+                         True -> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "Game over , you are dead! "]
+                         _-> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "InProcess", shipForm shipState,rocketForm rocketState] ++ 
+                                (map (invaderForm 0) rInvState') ++ (map (invaderForm 1) bInvState' )++ (map (invaderForm 2) gInvState' )
+                
                          
 filterInv invader = filter isAlive  invader
+
+shipWin a b c = null (a++b++c)
 
 
 main :: IO ()
