@@ -190,24 +190,13 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
       where
         rocketX' = if   rocketFlying' 
                    then rocketX state 
-                   else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
+                   else shipX shipState + 35 -- TODO: скорректировать смешение ракеты к центру кораблика 
         rocketY' = if   rocketFlying' 
                    then rocketY state - 20 -- Равномерненько
-                   else shipY shipState + 150
+                   else shipY shipState + 75
         rocketFlying' = launched || 
                         (rocketY state > 0 && 
-                          rocketY state < (snd . windowDims $ gameConfig) - 60)
-
-
-renderDebugString :: String -> Form
-renderDebugString = move (400, 100) . toForm . Text.plainText
-
-startupMessage :: Form 
-startupMessage = move (400, 300) . toForm . Text.text . formatText $ message
-  where 
-    formatText = (Text.color $ color) . Text.bold . Text.header . Text.toText
-    message = "Press Space to play"
-    color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
+                          rocketY state < (snd . windowDims $ gameConfig) - 30)
 
 invaderForm :: Int -> InvaderState -> Form
 invaderForm color state = case color of 
@@ -240,6 +229,15 @@ rocketForm state =
   where
     rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (0.0 / 255) (0.7)
 
+renderMessage :: Int -> Int -> String -> Form 
+renderMessage x y = move (fromIntegral x, fromIntegral y) . toForm . Text.text . formatText
+  where 
+    formatText = (Text.color $ color) . Text.bold . (Text.height 20) . Text.toText
+    color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
+
+controlsMessage :: Form
+controlsMessage = renderMessage 200 400 $ "   Use ← → to move \n And space to shoot"
+
 --нужно поправить размеры захватчика , поправить конфигурацию изначальную (размеры)
 --ну и скорость кораблика не радует , должен двигаться при удерживании стрелок
 --добавить счет(не знаю , что под этим предполагает логика игры. Число убитых захватчиков? )
@@ -252,14 +250,14 @@ render (w, h) gameState rInvState bInvState gInvState shipState rocketState=
   let gameStatus = status gameState in 
   case gameStatus of 
    Startup -> collage w h $ 
-      [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState] ++ (map (invaderForm 0) rInvState )++
+      [toForm (backgroundImg gameConfig),renderMessage 200 300 "Press space to play", controlsMessage, shipForm shipState] ++ (map (invaderForm 0) rInvState )++
        (map (invaderForm 1) bInvState ) ++ ( map (invaderForm 2) gInvState )                                           
    InProcess -> let (gInvState',bInvState',rInvState') = (filterInv gInvState,filterInv bInvState,filterInv rInvState)in
                 case shipWin gInvState' bInvState' rInvState' of
-                   True -> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "Game over , you win!"]
+                   True -> collage w h $ [toForm (backgroundImg gameConfig),renderMessage 200 300 "You win!"]
                    _-> case (any (\x -> invaderY x >= ((snd . windowDims $ gameConfig) - (snd . shipDims $ gameConfig))) $ rInvState ++ bInvState++gInvState) of
-                         True -> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "Game over , you are dead! "]
-                         _-> collage w h $ [toForm (backgroundImg gameConfig),renderDebugString "InProcess", shipForm shipState,rocketForm rocketState] ++ 
+                         True -> collage w h $ [toForm (backgroundImg gameConfig),renderMessage 200 300 "  Game over! \n You are dead!"]
+                         _-> collage w h $ [toForm (backgroundImg gameConfig),{-renderDebugString "InProcess",-} shipForm shipState,rocketForm rocketState] ++ 
                                 (map (invaderForm 0) rInvState') ++ (map (invaderForm 1) bInvState' )++ (map (invaderForm 2) gInvState' )
                 
                          
