@@ -74,6 +74,10 @@ invaderImg file gameConfig = Graphics.fittedImage
 -----------------------Game logic-----------------------
 --------------------------------------------------------
 
+-- Глобавльный таймер
+gameTimer :: Signal Time
+gameTimer = (Time.every $ 100 * Time.millisecond)
+
 -- Главный сигнал игры. Описывает изменения состояния игры (GameState).
 {-- 
   На данный момент работает так:
@@ -116,14 +120,14 @@ invaderSignal color gameSignal rocketSignal = foldp modifyState  initialState co
         state {invaderX = (fst . invaderDims $ gameConfig )*(n-1) +20 })  [1..4] 
           (replicate 4 $ InvaderState {invaderX = 0, invaderY = yPosition , invaderM = R, isAlive = True})
 
-    controlSignal :: Signal (GameState,Time,Bool, RocketState)
-    controlSignal = lift4 (,,,) gameSignal
-                     (Time.every $ 1000 * Time.millisecond)
+    controlSignal :: Signal (GameState,Bool, RocketState)
+    controlSignal = lift3 (,,) gameSignal
+                     --(Time.every $ 1000 * Time.millisecond)
                      (Keyboard.isDown Keyboard.SpaceKey)
                      rocketSignal
 
-    modifyState :: (GameState,Time,Bool,RocketState) -> [InvaderState] -> [InvaderState]
-    modifyState (gameState,time, pressed,rocket) states =
+    modifyState :: (GameState,Bool,RocketState) -> [InvaderState] -> [InvaderState]
+    modifyState (gameState,pressed,rocket) states =
       if (status gameState == InProcess) && not  pressed
       then (zipWith (\n st -> if (rocketFlying rocket) 
                               then f (murder st) n 
@@ -178,7 +182,7 @@ rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSigna
     
     controlSignal :: Signal (Bool, Time, GameState, ShipState)
     controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
-                                (Time.every $ 30 * Time.millisecond) -- тут скорость ракеты
+                                ((/ 2) `fmap` gameTimer)
                                 gameSignal
                                 shipSignal
 
