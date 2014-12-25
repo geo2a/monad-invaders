@@ -66,12 +66,12 @@ engineConfig gameConfig =
 backgroundImg :: GameConfig -> Element
 backgroundImg gameConfig = Graphics.fittedImage 
                 (fst . windowDims $ gameConfig)
-                (snd . windowDims $ gameConfig) "Graphics/3310screen.png"
+                (snd . windowDims $ gameConfig) "graphics/background/paper_smashed_vertical.png"
 
 spaceShipImg :: GameConfig -> Element
 spaceShipImg gameConfig = Graphics.fittedImage 
                 (fst . shipDims $ gameConfig) 
-                (snd . shipDims $ gameConfig) "Graphics/3310ship.png"
+                (snd . shipDims $ gameConfig) "graphics/ship/ship.png"
 
 --redInvaderImg :: Element
 --redInvaderImg = Graphics.fittedImage 100 100 "img/red_invader.png"
