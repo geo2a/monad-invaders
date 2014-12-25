@@ -1,4 +1,4 @@
---module Main where
+module Main where
 
 import Data.Ord 
 
@@ -10,34 +10,55 @@ import qualified FRP.Helm.Text      as Text
 import qualified FRP.Helm.Color     as Color
 import qualified FRP.Helm.Time      as Time
 
+-- Disclaimer: в рабочей версии комментариев возможны 
+-- орфографические, синтаксические, пунктуационные, семантические
+-- и другие ошибки. 
 
+--------------------------------------------------------
+-------------Types for game enteties states-------------
+--------------------------------------------------------
+
+-- Конфигурационная информация, будет представлена константным сигналом
 data GameConfig = GameConfig {
   windowDims :: (Int,Int),
   shipDims   :: (Int,Int),
-  rocketDims :: (Int,Int),
-  invaderDims :: (Int,Int)
-}
+  rocketDims :: (Int,Int)}
 
-data GameStatus = Startup | InProcess 
+-- Статус игры: ещё не начата, в процессе, окончена
+data GameStatus = Startup | InProcess | Over
   deriving (Enum, Bounded,Eq)
 
 data GameState = GameState {status :: GameStatus}
 
-data InvaderState = InvaderState {invaderX :: Int, invaderY :: Int, invaderM :: InvaderMovement}
+-- Тип, описывающий состояние фона окна, меняется вслед за стуатусом игры
+--    До старта игры выводится приграшение к старту
+--    В процессе игры выводится количество очков и здоровье кораблика
+--    При проигрыше выводится соответсвующее сообщение
 
-data InvaderMovement = R|D|L|U 
-   deriving (Eq)
+-- Тип, описывающий состояние кораблика: 
+--    shipX, shipY - Координаты кораблика
+--    rocketX, rocketY - Координаты выпущенной корабликом ракеты
+--    rocketFlying - Выпущена ли ракета
+--      На данный момент поддерживается только одина ракета, 
+--      надо придумать, как сделать много
+data ShipState = ShipState {shipX :: Int, shipY :: Int} 
+
+data RocketState = RocketState {
+  rocketX :: Int, rocketY :: Int, rocketFlying :: Bool}
+
+--------------------------------------------------------
+--------------Initialisation of resources---------------
+--------------------------------------------------------
 
 -- Главный конфиг игры, управляет почти всеми параметрами
 gameConfig :: GameConfig
 gameConfig = GameConfig {
-      windowDims = (450,800),
-      shipDims   = (70,100),
-      rocketDims = (10,10),
-      invaderDims = (100,100)
+      windowDims = (800,800),
+      shipDims   = (140,200),
+      rocketDims = (20,20)
   }
 
-
+-- Конфигурационная информация для библиотеки: размеры окна, заголовок окна, что-то там ещё
 engineConfig :: GameConfig -> EngineConfig
 engineConfig gameConfig = 
   EngineConfig (windowDims gameConfig) False False "Monad Invaders v0.0.1"
@@ -45,47 +66,113 @@ engineConfig gameConfig =
 backgroundImg :: GameConfig -> Element
 backgroundImg gameConfig = Graphics.fittedImage 
                 (fst . windowDims $ gameConfig)
-                (snd . windowDims $ gameConfig) "Graphics/3310screen.png"
+                (snd . windowDims $ gameConfig) "Graphics/paper_fullhd_20.png"
 
-redInvaderImg ::GameConfig -> Element
-redInvaderImg gameConfig = Graphics.fittedImage (fst . invaderDims $ gameConfig) 
-  (snd . invaderDims $ gameConfig) "Graphics/invader.png"
+spaceShipImg :: GameConfig -> Element
+spaceShipImg gameConfig = Graphics.fittedImage 
+                (fst . shipDims $ gameConfig) 
+                (snd . shipDims $ gameConfig) "Graphics/ship_pencil.png"
 
+--redInvaderImg :: Element
+--redInvaderImg = Graphics.fittedImage 100 100 "img/red_invader.png"
+
+--------------------------------------------------------
+-----------------------Game logic-----------------------
+--------------------------------------------------------
+
+-- Главный сигнал игры. Описывает изменения состояния игры (GameState).
+{-- 
+  На данный момент работает так:
+    В начале поле структуры status структуры GameState 
+    имеет значение Startup (элемент перечисления GameStatus) -- 
+    на экране изображено приглашение к началу игры.
+    После первого нажатия на пробел поле status ппринимает значение 
+    InProcess, то есть игра переходит в активное состояние, на экране
+    виден кораблик, можно двигать его стрелочками.
+
+  TODO: Реализовать переход в состояние Over, для этого надо расширить 
+        состояние кораблика и его сигнал, а в сигнале игры обработать 
+        "смерть" кораблика
+--}
 gameSignal :: Signal GameState
 gameSignal = foldp modifyState initialState (Keyboard.isDown Keyboard.SpaceKey)
   where
     initialState = GameState {status = Startup}
+
+    --controlSignal :: Signal (Bool,(Int,Int))
+    --controlSignal = lift2 (,) (Keyboard.isDown Keyboard.SpaceKey)
+
     modifyState :: Bool -> GameState -> GameState
     modifyState pressed state = 
       if pressed && (status state == Startup) 
       then state {status = nextStatus} 
-      else  state 
+      else state {status = status state}
       where
         nextStatus = 
-          let s = status state in (succ s)
+          let s = status state in
+          if s == (maxBound :: GameStatus) then s else succ s
 
-invaderSignal :: Signal GameState -> Signal InvaderState
-invaderSignal gameSignal = foldp modifyState  initialState controlSignal
-   where 
-    initialState = InvaderState {invaderX = 150, invaderY = 150, invaderM = R}
-     
-    controlSignal :: Signal (GameState,Time,Bool)
-    controlSignal = lift3 (,,) gameSignal 
-                              (Time.every $ 1000 * Time.millisecond)
-                              (Keyboard.isDown Keyboard.SpaceKey)
+-- Сигнал кораблика, описывает поведение кораблика и его ракет во времени
+shipSignal :: Signal GameState -> Signal ShipState
+shipSignal gameSignal = foldp modifyState initialState controlSignal
+  where 
+    initialState = 
+      let (w,h)   = windowDims gameConfig
+          (sw,sh) = shipDims   gameConfig
+      in ShipState {shipX = w `div` 2 - sw `div` 2 - 10, 
+                    shipY = h - sh}
+    
+    controlSignal :: Signal ((Int,Int),GameState)
+    controlSignal = lift2 (,) Keyboard.arrows gameSignal
 
-    modifyState :: (GameState,Time,Bool) -> InvaderState -> InvaderState
-    modifyState (gameState,time,pressed) state = 
-      if (status gameState == InProcess) && not pressed
-      then state {invaderX = invaderX', invaderY = invaderY', invaderM = invaderM'}
+    modifyState :: ((Int,Int),GameState) -> ShipState -> ShipState
+    modifyState ((dx,dy),gameState) state = 
+      if status gameState == InProcess
+      then state {shipX = shipX', shipY = shipY'}
       else state
-        where 
-           (invaderX',invaderY', invaderM') = case (invaderX state,invaderY state , invaderM state ) of
-                                                (x,y,m) | x < 190 && m == R ->  (x + 20,y, R)
-                                                        | m == R -> (x,y +20 , D)
-                                                        | m == D -> (x - 20, y,L)
-                                                        | m == L -> (x-20,y, U)
-                                                        | otherwise -> (x,y -20,R)
+        where shipX' = shipX state + 20 * dx --TODO: Мб стоит вынести константу в конфигурацию
+              shipY' = shipY state
+
+-- Сигнал ракеты, зависит от сигнала кораблика.
+--   Можно стрелять, нажмая на пробел, движение управляется таймером. 
+--   TODO: БАГ!! Скорость движения ракеты зависит от нажатия на стрелочки 
+--         (управление карабликом) -- пока не придумал, как с этим бороться
+--          
+--         ЕЩЁ БАГ!! При переходе в состояние InProcess происходит самопроизвольный 
+--         выстрел ракетой
+--
+rocketSignal :: Signal GameState -> Signal ShipState -> Signal RocketState
+rocketSignal gameSignal shipSignal = foldp modifyState initialState controlSignal
+  where 
+    initialState = RocketState {rocketX = -20, rocketY = 550, rocketFlying = False}
+    
+    controlSignal :: Signal (Bool, Double, GameState, ShipState)
+    controlSignal = lift4 (,,,) (Keyboard.isDown Keyboard.SpaceKey) 
+                                (Time.every $ 50 * Time.millisecond) -- тут скорость ракеты
+                                gameSignal
+                                shipSignal
+
+    modifyState :: (Bool, Double, GameState, ShipState) -> RocketState -> RocketState
+    modifyState (launched,time,gameState, shipState) state =
+      if status gameState == InProcess 
+      then state {rocketX = rocketX', rocketY = rocketY', rocketFlying = rocketFlying'}
+      else initialState
+      where
+        rocketX' = if   rocketFlying' 
+                   then rocketX state 
+                   else shipX shipState + 70 -- TODO: скорректировать смешение ракеты к центру кораблика 
+        rocketY' = if   rocketFlying' 
+                   then rocketY state - 20 -- Равномерненько
+                   else shipY shipState + 150
+        rocketFlying' = launched || 
+                        (rocketY state > 0 && 
+                          rocketY state < (snd . windowDims $ gameConfig) - 60)
+
+--------------------------------------------------------
+-----------------------Rendering------------------------
+--------------------------------------------------------
+
+-- TODO: ИСКОРЕНИТЬ ХАРДКОД!!1!11
 
 renderDebugString :: String -> Form
 renderDebugString = move (400, 100) . toForm . Text.plainText
@@ -97,30 +184,47 @@ startupMessage = move (400, 100) . toForm . Text.text . formatText $ message
     message = "Press Space to play"
     color =  Color.rgba (50.0 / 255) (50.0 / 255) (50.0 / 255) (0.7)
 
-invaderForm :: InvaderState -> Form
-invaderForm state = move (fromIntegral $ invaderX state,
-                       fromIntegral $ invaderY state) $ toForm (redInvaderImg gameConfig)
+-- Рендеринг форм на основе элементов (изображений в формате png) и состояний объектов 
 
-render :: (Int, Int) -> GameState -> InvaderState -> Element
-render (w, h) gameState invaderState =
+-- Фон
+-- TODO: Можно добавить что-нибудь на фон (Хп кораблика, очки и т.п.)
+--backgroundForm :: GameStatus -> Form
+--backgroundForm Startup   = group [toForm backgroundImg,startupMessage] 
+--backgroundForm InProcess = group [toForm backgroundImg,renderDebugString "InProcess"]
+--backgroundForm Over      = group [toForm backgroundImg,renderDebugString "Over"]
+
+
+-- Кораблик
+shipForm :: ShipState -> Form
+shipForm state = move (fromIntegral $ shipX state,
+                       fromIntegral $ shipY state) $ toForm (spaceShipImg gameConfig)
+
+-- Ракета кораблика
+rocketForm :: RocketState -> Form
+rocketForm state =
+  move (fromIntegral $ rocketX state,
+        fromIntegral $ rocketY state) $ filled rocketColor $ rect 20 20
+  where
+    rocketColor = Color.rgba (0.0 / 255) (0.0 / 255) (255.0 / 255) (0.7)
+
+-- Рендеринг общей сцены 
+render :: (Int, Int) -> GameState -> ShipState -> RocketState -> Element
+render (w, h) gameState shipState rocketState =
   let gameStatus = status gameState in 
   case gameStatus of 
     Startup -> collage w h $ 
-      [toForm (backgroundImg gameConfig),startupMessage,invaderForm invaderState]
+      [toForm (backgroundImg gameConfig),startupMessage,shipForm shipState]
     InProcess -> collage w h $ 
       [toForm (backgroundImg gameConfig),renderDebugString "InProcess",
-       invaderForm invaderState]
-   {- Over -> collage w h $ 
-      [toForm (backgroundImg gameConfig),renderDebugString "Over"]-}
+       rocketForm rocketState, shipForm shipState]
+    Over -> collage w h $ 
+      [toForm (backgroundImg gameConfig),renderDebugString "Over"]
 
 main :: IO ()
 main = 
   let windowSignal = Window.dimensions
-      invaderSignal' = invaderSignal gameSignal
+      shipSignal'   = shipSignal gameSignal
+      rocketSignal' = rocketSignal gameSignal shipSignal' 
   in  run (engineConfig gameConfig) $ render <~ 
-        windowSignal ~~ gameSignal ~~ invaderSignal' 
-
-
-
-
+        windowSignal ~~ gameSignal ~~ shipSignal' ~~ rocketSignal'
 
