@@ -135,8 +135,11 @@ invaderSignal color gameSignal rocketSignal = foldp modifyState  initialState co
                       [1..length states] states)
       else states
         where
-          murder state = let isalive = (null . intersect [rocketX rocket +1..rocketX rocket + 9]) [invaderX state..invaderX state +40] in
-                                          if isalive then state else state{isAlive = False}  
+          --eqy state = (invaderY state <= rocketY rocket) && rocketFlying rocket
+          murder state = 
+            let isDead =  ((rocketX rocket >= invaderX state) && (rocketX rocket <= invaderX state + 75)) && -- ((null . intersect [rocketX rocket +1..rocketX rocket + 9]) [invaderX state..invaderX state +40]) &&
+                             (rocketY rocket <= invaderY state + 35) && rocketFlying rocket in
+                                          if not isDead then state else state{isAlive = False}  
           f state n = let (x',y',m',a')=(case (invaderX state,invaderY state , invaderM state, isAlive state) of
                                         (x,y,m,a)| x < 40 + (fst . invaderDims $ gameConfig )*(n-1) && m == R -> (x + 20,y, R,a)
                                                  | m == R -> (x,y +2 , D,a)
