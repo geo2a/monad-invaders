@@ -1,5 +1,5 @@
 name:                monad-invaders
-version:             0.0.1
+version:             0.1
 synopsis:            A Space Invaders arcade game clone written in haskell using HELM framework
 -- description:         
 homepage:            https://github.com/geo2a/monad-invaders.git
