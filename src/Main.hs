@@ -46,7 +46,7 @@ data InvaderMovement = R|D|L|D2
 
 gameConfig :: GameConfig
 gameConfig = GameConfig {
-      windowDims = (450,800),
+      windowDims = (450,600),
       shipDims   = (70,100),
       rocketDims = (10,10),
       invaderDims = (100,100)
